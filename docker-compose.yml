@@ -82,7 +82,7 @@ services:
     secrets:
       - kong_pg_password
     volumes:
-      - .${KONG_LOG_DIR:-./logs}:/usr/local/kong/logs # logs persistentes (opcional)
+      - ${KONG_LOG_DIR:-./logs}:/usr/local/kong/logs # logs persistentes (opcional)
       - ./ssl:/etc/kong/ssl:ro
       # - ./kong.conf:/etc/kong/kong.conf:ro   # opcional si prefieres archivo
     networks:
