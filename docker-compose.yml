@@ -86,8 +86,8 @@ services:
       - kong-net
     # Expón SOLO los puertos del proxy; Admin/API y Manager NO se publican
     ports:
-      - "80:8000"
-      - "443:8443"
+      - "${KONG_HTTP_LISTEN:-80}:8000"
+      - "${KONG_HTTPS_LISTEN:-443}:8443"
       # Si quieres acceso local a Admin/Manager en la misma máquina, descomenta:
       - "${KONG_ADMIN_LISTEN:-127.0.0.1:8001:8001}"   # Admin API HTTP (solo localhost)
       # - "127.0.0.1:8444:8444"   # Admin API HTTPS (solo localhost)
