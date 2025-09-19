@@ -40,6 +40,7 @@ KONG_PG_SSL_VERIFY=on
 # Configuración de Kong
 KONG_IMAGE=kong:3.11
 KONG_LOG_LEVEL=notice
+KONG_LOG_DIR=./kong-logs
 KONG_ADMIN_GUI_URL=http://localhost:8002
 
 # Configuración opcional para IPs confiables (si usas load balancer)
@@ -58,7 +59,33 @@ chmod 600 ./secrets/kong_pg_password.txt
 
 **Alternativa:** Si prefieres usar variables de entorno, modifica el `docker-compose.yml` comentando `KONG_PG_PASSWORD_FILE` y descomentando `KONG_PG_PASSWORD`.
 
-### 3. Certificados SSL/TLS
+### 3. Directorio de Logs
+
+Kong genera logs que pueden ser útiles para monitoreo y debugging. Crea un directorio dedicado para logs:
+
+```bash
+# Crear directorio para logs
+mkdir -p ./kong-logs
+
+# Configurar permisos para el usuario Kong (UID 1337)
+sudo chown -R 1337:1337 ./kong-logs
+
+# Verificar permisos
+ls -la kong-logs/
+```
+
+Para habilitar logs persistentes, configura la variable de entorno en tu archivo `.env`:
+
+```bash
+# Agregar al archivo .env
+KONG_LOG_DIR=./kong-logs
+```
+
+> **💡 Nota:** Kong ejecuta con el usuario UID 1337 dentro del contenedor, por lo que es necesario configurar los permisos correctamente para que pueda escribir logs.
+
+> **📁 Estructura de logs:** Con logs persistentes habilitados, Kong generará archivos como `access.log`, `error.log`, etc. en el directorio especificado.
+
+### 4. Certificados SSL/TLS
 
 #### Opción A: Certificados Autofirmados (Desarrollo/Testing)
 
@@ -137,8 +164,29 @@ docker compose restart kong
 # Ver estado de los servicios
 docker compose ps
 
-# Ver logs
-docker compose logs kong
+# Ver logs en tiempo real
+docker compose logs -f kong
+
+# Ver logs específicos del proxy
+docker compose logs kong | grep proxy
+
+# Ver logs de errores únicamente
+docker compose logs kong | grep ERROR
+```
+
+### Logs Persistentes
+
+Si configuraste el directorio `./kong-logs`, puedes acceder a los logs directamente:
+
+```bash
+# Ver logs de acceso del proxy
+tail -f ./kong-logs/proxy_access.log
+
+# Ver logs de errores del proxy  
+tail -f ./kong-logs/proxy_error.log
+
+# Ver logs de la Admin API
+tail -f ./kong-logs/admin_access.log
 ```
 
 ## 🔒 Configuración SSL/TLS
@@ -200,6 +248,7 @@ Si tienes problemas con SSL:
 | `KONG_PG_USER` | Usuario de PostgreSQL | `kong` |
 | `KONG_PG_SSL` | Habilitar SSL para PostgreSQL | `on` |
 | `KONG_LOG_LEVEL` | Nivel de logging | `notice` |
+| `KONG_LOG_DIR` | Directorio para logs persistentes | `./logs` |
 | `KONG_ADMIN_GUI_URL` | URL pública del Kong Manager | `http://localhost:8002` |
 
 ## 🖥️ Acceso a la Administración
