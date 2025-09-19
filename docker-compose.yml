@@ -1,0 +1,113 @@
+name: kong-gateway
+
+networks:
+  kong-net:
+
+secrets:
+  kong_pg_password:    # opcional: usa Docker secrets en lugar de poner la pass en claro
+    file: ./secrets/kong_pg_password.txt
+
+x-kong-env: &kong-env
+  KONG_DATABASE: postgres
+  KONG_PG_HOST: ${KONG_PG_HOST}         # p.ej. mydb.acme.internal
+  KONG_PG_PORT: ${KONG_PG_PORT:-5432}
+  KONG_PG_DATABASE: ${KONG_PG_DATABASE:-kong}
+  KONG_PG_USER: ${KONG_PG_USER:-kong}
+  # Usa UNA de estas dos opciones para la contraseña:
+  # 1) Por secret (recomendado):
+  KONG_PG_PASSWORD_FILE: /run/secrets/kong_pg_password
+  # 2) O por variable de entorno (borra la línea de *_FILE si usas esta):
+  # KONG_PG_PASSWORD: ${KONG_PG_PASSWORD}
+
+  # TLS hacia Postgres (ajústalo según tu servidor):
+  KONG_PG_SSL: ${KONG_PG_SSL:-on}
+  KONG_PG_SSL_VERIFY: ${KONG_PG_SSL_VERIFY:-on}
+
+  # Puertos de proxy (públicos)
+  KONG_PROXY_LISTEN: "0.0.0.0:8000 reuseport backlog=16384, 0.0.0.0:8443 ssl reuseport backlog=16384"
+
+  # Admin API y Kong Manager: escuchan DENTRO del contenedor/red (no publicados al host)
+  KONG_ADMIN_LISTEN: "0.0.0.0:8001, 0.0.0.0:8444 ssl"
+  KONG_ADMIN_GUI_LISTEN: "0.0.0.0:8002, 0.0.0.0:8445 ssl"
+
+  # URL pública de la UI (ajústala si accedes vía túnel o reverse proxy):
+  KONG_ADMIN_GUI_URL: ${KONG_ADMIN_GUI_URL:-http://localhost:8002}
+
+  # Status API para probes/healthchecks
+  KONG_STATUS_LISTEN: "0.0.0.0:8100"
+
+  # Logging y nivel
+  KONG_PROXY_ACCESS_LOG: /dev/stdout
+  KONG_PROXY_ERROR_LOG: /dev/stderr
+  KONG_ADMIN_ACCESS_LOG: /dev/stdout
+  KONG_ADMIN_ERROR_LOG: /dev/stderr
+  KONG_LOG_LEVEL: ${KONG_LOG_LEVEL:-notice}
+
+  # Si estás detrás de un LB, ajusta IP real del cliente
+  # KONG_TRUSTED_IPS: ${KONG_TRUSTED_IPS:-10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
+  # KONG_REAL_IP_HEADER: "X-Forwarded-For"
+  # KONG_REAL_IP_RECURSIVE: "on"
+
+services:
+  kong-migrations:
+    image: ${KONG_IMAGE:-kong:3.11}
+    command: ["kong", "migrations", "bootstrap"]
+    environment:
+      <<: *kong-env
+    secrets:
+      - kong_pg_password
+    networks:
+      - kong-net
+    restart: "no"
+
+  kong-migrations-up:
+    image: ${KONG_IMAGE:-kong:3.11}
+    command: ["/bin/sh", "-lc", "kong migrations up && kong migrations finish"]
+    environment:
+      <<: *kong-env
+    secrets:
+      - kong_pg_password
+    networks:
+      - kong-net
+    restart: "no"
+
+  kong:
+    image: ${KONG_IMAGE:-kong:3.11}
+    container_name: kong
+    environment:
+      <<: *kong-env
+      # Certs del proxy TLS (monta tus llaves reales en ./ssl)
+      KONG_SSL_CERT: /etc/kong/ssl/tls.crt
+      KONG_SSL_CERT_KEY: /etc/kong/ssl/tls.key
+    volumes:
+      - ./ssl:/etc/kong/ssl:ro
+      # - ./kong.conf:/etc/kong/kong.conf:ro   # opcional si prefieres archivo
+    networks:
+      - kong-net
+    # Expón SOLO los puertos del proxy; Admin/API y Manager NO se publican
+    ports:
+      - "80:8000"
+      - "443:8443"
+      # Si quieres acceso local a Admin/Manager en la misma máquina, descomenta:
+      - "${KONG_ADMIN_LISTEN:-127.0.0.1:8001:8001}"   # Admin API HTTP (solo localhost)
+      # - "127.0.0.1:8444:8444"   # Admin API HTTPS (solo localhost)
+      - "${KONG_ADMIN_GUI_LISTEN:-127.0.0.1:8002:8002}"   # Kong Manager (solo localhost)
+      # - "127.0.0.1:8445:8445"   # Kong Manager HTTPS (solo localhost)
+      - "${KONG_STATUS_LISTEN:-127.0.0.1:8100:8100}"   # Status API (solo localhost)
+    healthcheck:
+      # Usa el readiness probe recomendado
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8100/status/ready >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 15s
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
