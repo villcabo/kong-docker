@@ -89,11 +89,11 @@ services:
       - "${KONG_HTTP_LISTEN:-80}:8000"
       - "${KONG_HTTPS_LISTEN:-443}:8443"
       # Si quieres acceso local a Admin/Manager en la misma máquina, descomenta:
-      - "${KONG_ADMIN_LISTEN:-127.0.0.1:8001:8001}"   # Admin API HTTP (solo localhost)
+      - "${KONG_ADMIN_LISTEN:-127.0.0.1:8001}:8001"   # Admin API HTTP (solo localhost)
       # - "127.0.0.1:8444:8444"   # Admin API HTTPS (solo localhost)
-      - "${KONG_ADMIN_GUI_LISTEN:-127.0.0.1:8002:8002}"   # Kong Manager (solo localhost)
+      - "${KONG_ADMIN_GUI_LISTEN:-127.0.0.1:8002}:8002"   # Kong Manager (solo localhost)
       # - "127.0.0.1:8445:8445"   # Kong Manager HTTPS (solo localhost)
-      - "${KONG_STATUS_LISTEN:-127.0.0.1:8100:8100}"   # Status API (solo localhost)
+      - "${KONG_STATUS_LISTEN:-127.0.0.1:8100}:8100"   # Status API (solo localhost)
     healthcheck:
       # Usa el readiness probe recomendado
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8100/status/ready >/dev/null 2>&1 || exit 1"]
